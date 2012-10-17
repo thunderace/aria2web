@@ -12,7 +12,7 @@
 function openActionDialog( caller, action ) {
 	var dialog;
 	var selectedRows = Ext.getCmp("fileGrid").getSelectionModel().getSelections();
-	var dontNeedSelection = { add:1, get_about:1, globalOptions: 1 };
+	var dontNeedSelection = { add:1, get_about:1, globalOptions: 1, purge: 1};
 	if( dontNeedSelection[action] == null  && selectedRows.length < 1 ) {
 		Ext.Msg.alert( 'No file selected!');
 		return false;
@@ -122,8 +122,17 @@ function openActionDialog( caller, action ) {
             
             break;
 
-		case 'remove':
-			var num = selectedRows.length;
+        case 'purge':
+        	Ext.Msg.confirm('Remove finished downloads?', 'Are you sure you want to remove finished downloads?' , purgeFiles);
+			break;
+
+        case 'pause':
+            var num = selectedRows.length;
+    		Ext.Msg.confirm('Pause the File?', String.format("Are you sure you want to pause these {0} item(s)?", num ), pauseFiles);
+			break;
+
+case 'remove':
+            var num = selectedRows.length;
 			Ext.Msg.confirm('Remove the File?', String.format("Are you sure you want to remove these {0} item(s)?", num ), removeFiles);
 			break;
 		case 'download':
@@ -139,6 +148,7 @@ function handleCallback(requestParams, node) {
 		params: requestParams,
 		callback: function(options, success, response ) {
 			if( success ) {
+//                Ext.Msg.alert(response.responseText);
 				json = Ext.decode( response.responseText );
 				if( json.success ) {
 					statusBarMessage( json.message, false, true );
@@ -180,6 +190,26 @@ function removeFiles(btn) {
 	}
 	requestParams = getRequestParams();
 	requestParams.action = 'remove';
+	handleCallback(requestParams);
+}
+
+
+function purgeFiles(btn) {
+    if( btn != 'yes') {
+		return;
+	}
+	requestParams = getRequestParams();
+	requestParams.action = 'purge';
+	handleCallback(requestParams);
+}
+
+
+function pauseFiles(btn) {
+    if( btn != 'yes') {
+    	return;
+	}
+	requestParams = getRequestParams();
+	requestParams.action = 'pause';
 	handleCallback(requestParams);
 }
 

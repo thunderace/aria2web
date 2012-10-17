@@ -42,6 +42,7 @@ Ext.onReady(function(){
             {name: "gid"},
             {name: "status"},
             {name: "totalLength"},
+            {name: "name"},
             {name: "completedLength"},
             {name: "uploadLength"},
             {name: "bitfield"},
@@ -80,6 +81,16 @@ Ext.onReady(function(){
            		cls:'x-btn-text-icon',
            		handler: function() { openActionDialog(this, 'remove'); }
            	},
+               {
+               	xtype: "tbbutton",
+           		id: 'tb_pause',
+           		icon: 'images/_pause.png',
+           		text: 'Pause/UnPause',
+           		disabled: true,
+           		tooltip: 'Allows you to pause a download',
+           		cls:'x-btn-text-icon',
+           		handler: function() { openActionDialog(this, 'pause'); }
+           	},
               {
            		xtype: "tbbutton",
            		id: 'tb_reload',
@@ -88,6 +99,15 @@ Ext.onReady(function(){
               	tooltip: 'Refreshed the download list',
                 cls:'x-btn-text-icon',
                 handler: function() { datastore.load(); }
+              },'-',
+              {
+               	xtype: "tbbutton",
+           		id: 'tb_purge',
+                icon: 'images/_reload.png',
+                text: 'Purge',
+              	tooltip: 'Purge completed downloads from list',
+                cls:'x-btn-text-icon',
+                handler: function() { openActionDialog(this, 'purge');}
               },'-',
               {
                   text: 'Show Active',
@@ -159,13 +179,17 @@ Ext.onReady(function(){
     // the data store
     var cm = new Ext.grid.ColumnModel([{
            id: 'gridcm', // id assigned so we can apply custom css (e.g. .x-grid-col-topic b { color:#333 })
-           header: "GID",
+           header: "ID",
            dataIndex: 'gid',
            width: 30,
            //renderer: renderFileName,
            css: 'white-space:normal;'
            
         },{
+            header: "Name",
+            dataIndex: 'name',
+            width: 350
+         },{
             header: "CompletedLength",
             dataIndex: 'completedLength',
             width: 120
@@ -182,7 +206,7 @@ Ext.onReady(function(){
             dataIndex: 'uploadSpeed',
             width: 100
          },{
-             header: "estimated Time",
+             header: "Estimated Time",
              dataIndex: 'estimatedTime',
              width: 100
           },{
@@ -192,12 +216,8 @@ Ext.onReady(function(){
           },{
               header: "Status",
               dataIndex: 'status',
-              width: 150,
+              width: 250,
               align: 'right'
-           },{
-              header: "# Pieces",
-              dataIndex: 'numPieces',
-              width: 60
            },  
         { dataIndex: 'bitfield', hidden: true, hideable: false },
         {dataIndex: 'infohash', hidden: true, hideable: false },
@@ -205,7 +225,8 @@ Ext.onReady(function(){
         {dataIndex: 'pieceLength', hidden: true, hideable: false },
         {dataIndex: 'errorCode', hidden: true, hideable: false },
         {dataIndex: 'followedBy', hidden: true, hideable: false },
-        {dataIndex: 'belongsTo', hidden: true, hideable: false }
+        {dataIndex: 'belongsTo', hidden: true, hideable: false },
+        {dataIndex: 'numPieces', hidden: true, hideable: false }
         ]);
 
     // by default columns are sortable
@@ -274,17 +295,6 @@ Ext.onReady(function(){
 	    	]
 	    });
 	    
-	// define a template to use for the detail view
-	var fileTplMarkup = [
-		'GID: {gid}<br/>',
-		'Downloaded: {completedLength}<br/>',
-		'Total Size: {totalLength}<br/>',
-		'Files: <ul><tpl for="items">',
-		'<li><strong>{path}</strong></li>',
-		'</tpl></ul>'
-	];
-	var fileTpl = new Ext.XTemplate(fileTplMarkup);
-
 	
     // create the grid
     var viewport = new Ext.Viewport({	
@@ -315,20 +325,10 @@ Ext.onReady(function(){
        		},
 	       	tbar: gridtb,
 	       	bbar: gridbb,
-	        width:'80%',
+	        width:'100%',
 			split: true,
 			region: 'center'
        },{
-			id: 'detailPanel',
-			title: "Details",
-	        width:'20%',
-			region: 'east',
-			bodyStyle: {
-				background: '#ffffff',
-				padding: '7px'
-			}
-       //,html: 'Please select a file to see additional details.'
-		},{
 			region: "south",
 			contentEl: "bottom" 
 		}]
@@ -338,48 +338,16 @@ Ext.onReady(function(){
     	
     	var selections = sm.getSelections();
     	tb = Ext.getCmp("fileGrid").getTopToolbar();		
-    	if( selections.length > 1 ) {
-    		tb.items.get('tb_remove').enable();
-    	} else if(selections.length == 1) {
-    		tb.items.get('tb_remove').enable();
-    		try {
-    			var gid = r.data.gid;
-    			
-    			Ext.Ajax.request({
-    				   url: 'index.php',
-    				   callback: function(oElement, bSuccess, oResponse) {
-							if( !bSuccess ) {
-								msgbox = Ext.Msg.alert( "Ajax communication failure!");
-								msgbox.setIcon( Ext.MessageBox.ERROR );
-							}
-							if( oResponse && oResponse.responseText ) {
-								
-								//Ext.Msg.alert("Debug", oResponse.responseText );
-								try{ json = Ext.decode( oResponse.responseText );
-									if( json.error && typeof json.error != 'xml' ) {
-										Ext.Msg.alert( "Error", json.error );
-										return false;
-									}
-								} catch(e) {
-									msgbox = Ext.Msg.alert( "Error", "JSON Decode Error: " + e.message );
-									msgbox.setIcon( Ext.MessageBox.ERROR );
-									return false; 
-								}
-
-				    			var detailPanel = Ext.getCmp('detailPanel');
-					    		fileTpl.overwrite(detailPanel.body, json);
-							}
-    					},
-    				   params: { 
-    						gid: gid,
-    						action: "getFiles"
-    					}
-    				});
-
-    		} catch(e) { }
-    	} else {
-			tb.items.get('tb_remove').disable();
-    	}
+    	if( selections.length >= 1 ) 
+            {
+        	tb.items.get('tb_remove').enable();
+        	tb.items.get('tb_pause').enable();
+            }
+	    else 
+            {
+    		tb.items.get('tb_remove').disable();
+    		tb.items.get('tb_pause').disable();
+            }
     	return true;
     }
     

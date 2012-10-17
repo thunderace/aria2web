@@ -18,13 +18,13 @@ session_name('aria2web');
 session_start();
 
 require_once('config.php');
-require_once('auth.php');
+//require_once('auth.php');
 
 
 require_once( 'functions.php');
 require_once( 'actions.php');
 ?>
-<html>
+<html>d
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>Aria2c Webfrontend</title>
@@ -81,7 +81,7 @@ Ext.Msg.show({
 
 } catch (Exception $e) {  
     // Other errors (HTTP or networking problems...)
- 	/*echo ('<script type="text/javascript">
+ 	echo ('<script type="text/javascript">
 Ext.Msg.show({
    title:"Error",
    msg: "Connection Error: ' . $e->getMessage().'<br/>Please review your config.php and check if Aria2c is properly installed/running.",
@@ -89,7 +89,7 @@ Ext.Msg.show({
    fn: function(id,text,opt) { location.reload() },  
    icon: Ext.MessageBox.ERROR
 });</script>');
-    */
+    
 }
 
 ?>
