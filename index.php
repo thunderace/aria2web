@@ -24,7 +24,7 @@ require_once('config.php');
 require_once( 'functions.php');
 require_once( 'actions.php');
 ?>
-<html>d
+<html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>Aria2c Webfrontend</title>
