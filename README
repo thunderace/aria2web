@@ -1,3 +1,9 @@
+Version 2.0
+ExtJS updated to 3.4
+Work with aria2 1.15.2
+Tested only with ftp uris
+Many nex functions
+
 == About ==
 Aria2Web is a utility for the web-based control of a download manager called "aria2".
 
