@@ -13,76 +13,308 @@ defined( '_ARIA2WEB' ) or die();
 */
 
 require_once 'XML/RPC2/Client.php';
+//require_once '/volume1/web/lib/PhpConsole/PhpConsole.php';
+//PhpConsole::start(true, true, dirname(__FILE__));
+//require_once '/volume1/web/lib/KLogger.php';
+//$log = new KLogger('/volume1/web/', KLogger::INFO );
+
+
+function pause($gid)
+{
+    global $client;
+    $result = $client->aria2_pause( $gid);
+    //debug_print_r("unPause", $result);
+}
+
+
+function unPause($gid)
+{
+    global $client;
+    $result = $client->aria2_unpause( $gid);
+    //debug_print_r("unPause", $result);
+}
+
+function addUri($uris, $dir)
+{
+    global $client;
+    $msg = "";
+    try { 
+      $result = $client->aria2_addUri( $uris, array("dir" => $dir));
+      $msg = 'URI added';
+    }
+    catch (XML_RPC2_FaultException $e) {  
+      $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
+	  $success = false;
+    }
+
+}
+
+function getGlobalOption($opt)
+{	
+	global $client;
+	$result = $client->aria2_getGlobalOption();
+	if (is_array($result))
+		return $result[$opt];
+	return "Error";
+}
+
+function debug_print_r($str, $var)
+{
+    ob_start();
+    echo $str . " : ";
+    print_r($var);
+    debug(ob_get_contents());
+    ob_end_clean();
+
+}
+function log_print_r($str, $var)
+{
+	global $log;
+    ob_start();
+    echo $str . " : ";
+    print_r($var);
+    $log->logInfo(ob_get_contents());
+    ob_end_clean();
+
+}
+
+function getStats()
+{
+    global $client;
+    $result = $client->aria2_getGlobalStat();
+//    debug_print_r("Stats", $result);
+    return $result;
+}
 
 
 
 function getFiles($gid)
 {
     global $client;
+    $items = array();
     $result = $client->aria2_getFiles( $gid );
-    return basename($result[0]['path']);
-/*
-return = array( 'numFiles' => count( $result ),
-                    'items' => $result ); 
-*/
+    if( is_array($result))
+        {
+        foreach ($result as $file)
+			{
+			$f = basename($file['path']);
+//			$f = mb_check_encoding($f, 'UTF-8') ? $f : utf8_encode($f);
+			$items[] = $f;
+			}
+		}
+    return $items;
 }
 
-function tellStatus($gid)
+
+function getUris($gid)
 {
     global $client;
-    $status = 'failed';
-    try {
-      $result = $client->aria2_tellStatus( $gid );
-      if( !empty($result)) {
-        $status = $result['status'];
+    $result = $client->aria2_getFiles( $gid );
+//	debug_print_r("getUris", $result);
+    $items = array();
+    if( is_array($result))
+        {
+        foreach ($result as $files)
+            foreach ($files['uris'] as $uris)
+					$items[] = $uris['uri'];
         }
+    return $items;
+}
+
+function getDir($gid)
+{
+    global $client;
+//    $result = $client->aria2_getFiles( $gid );
+    $result = $client->aria2_tellStatus( $gid , array('dir'));
+    //debug_print_r("getDir", $result);
+    return $result['dir'];
+}
+
+function getStatus($gid)
+{
+    global $client;
+    $result = $client->aria2_tellStatus( $gid , array('status'));
+//    debug_print_r("status", $result);
+
+    return $result['status'];
+}
+
+function pauseAll()
+{
+    global $client;
+    try {
+        $result = $client->aria2_pauseAll();
+		return $result;
     }
     catch( XML_RPC2_FaultException $e ) {
-    return $status;
+    return $result;
     }
 }
 
-function tellFinished()
+function startAll()
 {
     global $client;
-    global $num;
-    global $offset;
-    $items = array();
     try {
-//      $result = $client->aria2_tellStopped( $offset, $num  );
-      $result = $client->aria2_tellStopped( $offset, 2  );  //$$AL$$ for test
-      if( !empty($result)) {
-        foreach( $result as $file ) {
-            if ($file['errorCode'] == 0)
-                $items[] = $file['gid'];
-          }
-        
-      }
-      return $items;
+        $result = $client->aria2_unpauseAll();
+		return $result;
+    }
+    catch( XML_RPC2_FaultException $e ) {
+    return $result;
+    }
+}
+
+
+function tellFinished($start, $end)
+{
+    global $client;
+    $totalCount = 0;
+    $items = array();
+    if ($end == 0)  // we want all 
+        {
+        $start = 0;
+        $end = 20000;  // that's enough no?
+        }
+    try 
+        {
+        $result = $client->aria2_tellStopped( $start, $end  );
+        if( !empty($result)) 
+            {
+            foreach( $result as $file ) 
+                {
+                if ($file['status'] == "complete" && $file['errorCode'] == 0)
+                    {
+                    $totalCount++;
+                    $items[] = $file['gid'];
+                    }
+                }
+            }
+    //debug_print_r("tellFinished count", $totalCount++);
+    return array( 'totalCount' => $totalCount,
+                   'items' => $items );
+
     } 
     catch( XML_RPC2_FaultException $e ) {
-    return $items;
+    $return = array( 'totalCount' => $totalCount,
+                   'items' => $items );
     }
 }
 
+
+function purge($list2purge)
+{
+    global $client;
+    $msg = '';
+    $count = 0;
+    if ($list2purge['totalCount'] != 0) 
+        {
+        $success = true;
+        foreach($list2purge['items'] as $gid ) 
+            {
+            if( !empty($gid)) 
+                {
+                try 
+                    { 
+                    $result = $client->aria2_removeDownloadResult( $gid );
+                    $count++;
+                    }
+                catch (XML_RPC2_FaultException $e) 
+                    {  
+                    $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
+                    $success = false;
+                    sendResult(false, 'No file to remove');
+                    exit;
+                    }
+                }
+            }
+        $msg .= $count . ' File removed from queue.';
+        sendResult($success, $msg);
+        exit;
+        }
+    sendResult(false, 'No file to remove');
+}
+
+function tellError($start, $end)
+{
+    global $client;
+    $totalCount = 0;
+    $items = array();
+    if ($end == 0)  // we want all 
+        {
+        $start = 0;
+        $end = 20000;  // that's enough no?
+        }
+    try 
+        {
+        $result = $client->aria2_tellStopped( $start, $end  );
+        if( !empty($result)) 
+            {
+            foreach( $result as $file ) 
+                {
+                if ($file['status'] == "error")
+                    {
+                    $totalCount++;
+                    $items[] = $file['gid'];
+                    }
+                }
+            }
+    //debug_print_r("tellFinished count", $totalCount++);
+    return array( 'totalCount' => $totalCount,
+                   'items' => $items );
+
+    } 
+    catch( XML_RPC2_FaultException $e ) {
+    $return = array( 'totalCount' => $totalCount,
+                   'items' => $items );
+    }
+}
+
+function getPackageName($target_dir)
+{
+	global $global_download_dir;
+//	log_print_r("tdir", $target_dir);
+	if ($target_dir == $global_download_dir)
+		return "";
+	$shortDir = str_replace($global_download_dir, "", $target_dir);
+	$package = 	dirname($shortDir);
+	if ($package == '/')
+		$package = basename($shortDir);
+	else
+		$package = str_replace("/", "", $package);
+
+	return $package;
+}
 
 $aria2_url = 'http://';
 if( $aria2_parameters['xml_rpc_user'] != '') {
   $aria2_url .= $aria2_parameters['xml_rpc_user'].':'.$aria2_parameters['xml_rpc_pass'].'@';
 }
 $aria2_url .= $aria2_xmlrpc_host.':'.$aria2_parameters['xml_rpc_listen_port']. $aria2_xmlrpc_uripath;
+$aria2_xml_rpc_options = array(
+    'encoding' => 'utf-8',
+	'uglyStructHack' => FALSE
+);
 
-$client = XML_RPC2_Client::create( $aria2_url );
+$client = XML_RPC2_Client::create( $aria2_url, $aria2_xml_rpc_options );
 
+
+$global_download_dir = getGlobalOption("dir");
+//log_print_r("down", $global_download_dir);
 $action = @$_REQUEST['action'];
 
-  /*
-$num = @min( $_REQUEST['num'], 200 );
-$offset = @min( $_REQUEST['offset'], 201 );
-  */
-$num = 2000;
-$offset = 0;
-  
+
+
+//$num = @min( $_REQUEST['num'], 200 );
+
+$num = @$_REQUEST['limit'];
+$offset = @$_REQUEST['start'];
+//debug_print_r("Num req ", $num);
+//debug_print_r("offset req", $offset);
+$num = intval($num);
+$offset = intval($offset);
+//debug_print_r("Num req ", $num);
+//debug_print_r("offset req", $offset);
+$stats = getStats();
+
 if( strstr( $action, 'dialog_' )) {
   include( 'dialogs.php');
 }
@@ -90,18 +322,29 @@ if( strstr( $action, 'dialog_' )) {
 switch( $action ) {
   // Retrieves all files in the download queue
   case 'tellActive':
-    $totalCount = 0;
     $activeArr = $waitingArr = array();
     $items = array();
     try {
+      if ($offset == 0)
+        $num -= $stats['numActive'];
+      else
+        {
+        $offset -= $stats['numActive'];
+        }
+//    debug_print_r("Num tellActive", $num);
+//    debug_print_r("Offset tellActive", $offset);
+
+
       $result = $client->system_multicall( array(
           array('methodName' => 'aria2.tellActive',
                 'params' => ''
           ),
           array('methodName' => 'aria2.tellWaiting',
-                'params' => array($offset, $num )
-          )                
+                'params' => array($offset, $num)
+          )
           ) );
+//	log_print_r("tellActive", $result);
+
     }
     catch( XML_RPC2_FaultException $e ) {
       $msg = 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ")aria2_tellStopped($offset, $num );";
@@ -111,15 +354,15 @@ switch( $action ) {
     }  
     catch(XML_RPC2_CurlException $e ) {
     }
+
     if( !empty($result) ) {
       $activeArr = $result[0];
       $waitingArr = $result[1];
     }
     
-    if( !empty($activeArr[0])) {
+    if( !empty($activeArr[0] ) && $offset == 0) {
       foreach( $activeArr as $files ) {
         foreach( $files as $file ) {
-          $totalCount ++;
           $items[]  = $file;          
         }
       }      
@@ -127,18 +370,39 @@ switch( $action ) {
     if( !empty($waitingArr[0])) {
       foreach( $waitingArr as $files ) {
         foreach( $files as $file ) {
-          $totalCount ++;
           $items[]  = $file;          
         }
       }
     }
+//	debug_print_r("waiting", count($waitingArr));
+//    debug_print_r("active", count($activeArr));
+
     foreach( $items as $num => $item) {
       if( $item['completedLength'] != 0 ) {
         $items[$num]['completedPercentage'] = ' ('.round( ($item['completedLength'] / $item['totalLength'])*100 , 2) .'%)';
       } else {
         $items[$num]['completedPercentage'] = '';
       }
-      $items[$num]['name'] = getFiles($item['gid']);
+	
+		$items[$num]['package'] = getPackageName($items[$num]['dir']);
+/*
+        $items[$num]['package']  = mb_check_encoding($items[$num]['package'] , 'UTF-8') ? $items[$num]['package']  : utf8_encode($items[$num]['package'] );
+		for ($i = 0; $i < count($item['files']); $i++)
+			$items[$num]['files'][$i]['path'] = mb_check_encoding($items[$num]['files'][$i]['path'], 'UTF-8') ? $items[$num]['files'][$i]['path'] : utf8_encode($items[$num]['files'][$i]['path']);
+*/
+		if ($items[$num]['status'] == 'waiting' || $items[$num]['status'] == 'paused')
+			{
+			// read the first uri
+			$items[$num]['name'] = basename($item['files'][0]['uris'][0]['uri']);
+			}
+		else
+			{
+			$items[$num]['name'] = basename($item['files'][0]['path']);
+			}
+//	  $items[$num]['name']  = mb_check_encoding($items[$num]['name'] , 'UTF-8') ? $items[$num]['name']  : utf8_encode($items[$num]['name'] );
+//      debug_print_r("name", $items[$num]['name']);
+
+//	  $items[$num]['dir'] = mb_check_encoding($items[$num]['dir'] , 'UTF-8') ? $items[$num]['dir']  : utf8_encode($items[$num]['dir'] );
       $items[$num]['completedLength'] = parse_file_size($item['completedLength']).$items[$num]['completedPercentage'];
       $items[$num]['totalLength'] = parse_file_size($item['totalLength']);
       $items[$num]['downloadSpeed'] = parse_file_size($item['downloadSpeed']).'/s';
@@ -146,7 +410,9 @@ switch( $action ) {
       $items[$num]['estimatedTime'] = calc_remaining_time( $item['downloadSpeed'], $item['totalLength']-$item['completedLength'] );
     }
     
-    $return = array( 'totalCount' => $totalCount,
+    
+
+    $return = array( 'totalCount' => $stats['numActive'] + $stats['numWaiting'],
                    'items' => $items );
     echo json_encode($return);
     die;
@@ -175,51 +441,54 @@ switch( $action ) {
     exit;
       
   case 'tellStopped':
-    $totalCount = 0;
-    try {
-      $offset = intval($offset);
-      $num = intval($num);
-      $result = $client->aria2_tellStopped( $offset, $num  );
-      if( !empty($result)) {
-        foreach( $result as $file ) {
-            switch( $file['errorCode'] ) {
-              case 0: $status = 'download successful'; break;
-              case 1:$status = 'unknown error occured'; break;
-              case 2:$status = 'time out occured'; break;
-              case 3:$status = 'resource not found'; break;
-              case 4:$status = 'resource not found'; break;
-              case 5:$status = 'download aborted, because download speed was too slow'; break;
-              case 6:$status = 'network problem occured'; break;
-            }
-            if( $file['completedLength'] != 0 ) {
-              $completedPercentage = ' ('.round( ($file['completedLength'] / $file['totalLength'])*100 , 2) .'%)';
-            } else {
-              $completedPercentage = '(0%)';
-            }
-            $file['status'] .= ', '. $status;    
-            $file['name'] = getFiles($file['gid']);
-            $file['completedLength'] = parse_file_size($file['completedLength']).$completedPercentage;
-            $file['totalLength'] = parse_file_size($file['totalLength']);
+    try 
+        {
+        $offset = intval($offset);
+        $num = intval($num);
+        $result = $client->aria2_tellStopped( $offset, $num  );
+        $items = array();
+        if( !empty($result)) 
+            {
+            foreach( $result as $file ) 
+                {
+                    switch( $file['errorCode'] ) 
+                        {
+                        case 0:$status = '';break;
+                        case 1:$status = '-unknown error occured'; break;
+                        case 2:$status = '-time out occured'; break;
+                        case 3:$status = '-resource not found'; break;
+                        case 4:$status = '-resource not found'; break;
+                        case 5:$status = '-download aborted, because download speed was too slow'; break;
+                        case 6:$status = '-network problem occured'; break;
+    					default: $status = '-Unknown error : ' . $file['errorCode'];
+                        }
 
-            $totalCount ++;
-            $items[] = $file;
-          }
-        
-      }
-      $return = array( 'totalCount' => $totalCount,
-               'items' => $items );
-      echo json_encode($return);
-    } 
-    catch( XML_RPC2_FaultException $e ) {
-      $msg = 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ")aria2_tellStopped($offset, $num );";
-      $success = false;  
-      sendResult($success, $msg);
-    }
+                    if( $file['completedLength'] != 0 ) 
+                        $completedPercentage = ' ('.round( ($file['completedLength'] / $file['totalLength'])*100 , 2) .'%)';
+                    else 
+                        $completedPercentage = '(0%)';
+                    $file['status'] .= $status; 
+					$file['package'] = getPackageName($file['dir']);
+					$file['name'] = basename($file['files'][0]['path']);
+                    $file['completedLength'] = parse_file_size($file['completedLength']).$completedPercentage;
+                    $file['totalLength'] = parse_file_size($file['totalLength']);
+                    $items[] = $file;
+                }    
+            }
+        $return = array( 'totalCount' => $stats['numStopped'] ,
+                            'items' => $items);
+//		debug_print_r("tata", $return);
+        echo json_encode($return);
+        } 
+    
+    catch( XML_RPC2_FaultException $e ) 
+        {
+        $msg = 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ")aria2_tellStopped($offset, $num );";
+        $success = false;  
+        sendResult($success, $msg);
+        }
     exit;
-  case 'tellStatus':
-    //aria2.tellStatus gid
-    //This method returns download progress of the download denoted by gid. gid is of type string. The response is of type struct and it contains following keys. The value type is string.
-    break;
+
   case 'addUri':
     //aria2.addUri uris[, options[, position]]
     //This method adds new HTTP(S)/FTP/BitTorrent Magnet URI. uris is of type array and its element is URI which is of type string. For BitTorrent Magnet URI, uris must have only one element and it should be BitTorrent Magnet URI. options is of type struct and its members are a pair of option name and value. See Options below for more details. If position is given as an integer starting from 0, the new download is inserted at position in the waiting queue. If position is not given or position is larger than the size of the queue, it is appended at the end of the queue. This method returns GID of registered download.
@@ -245,12 +514,13 @@ switch( $action ) {
   case 'addTorrent':
     //aria2.addTorrent torrent[, uris[, options[, position]]]
     //This method adds BitTorrent download by uploading .torrent file. If you want to add BitTorrent Magnet URI, use aria2.addUri method instead. torrent is of type base64 which contains Base64-encoded .torrent file. uris is of type array and its element is URI which is of type string. uris is used for Web-seeding. For single file torrents, URI can be a complete URI pointing to the resource or if URI ends with /, name in torrent file is added. For multi-file torrents, name and path in torrent are added to form a URI for each file. options is of type struct and its members are a pair of option name and value. See Options below for more details. If position is given as an integer starting from 0, the new download is inserted at position in the waiting queue. If position is not given or position is larger than the size of the queue, it is appended at the end of the queue. This method returns GID of registered download.
-  
+    exit;
   case 'addMetalink':
     //aria2.addMetalink metalink[, options[, position]]
     //This method adds Metalink download by uploading .metalink file. metalink is of type base64 which contains Base64-encoded .metalink file. options is of type struct and its members are a pair of option name and value. See Options below for more details. If position is given as an integer starting from 0, the new download is inserted at position in the waiting queue. If position is not given or position is larger than the size of the queue, it is appended at the end of the queue. This method returns array of GID of registered download.
-
+    exit;
   case 'remove':
+//    debug_print_r("post", $_POST);
     //aria2.remove gid
     //This method removes the download denoted by gid. gid is of type string. If specified download is in progress, it is stopped at first. The status of removed download becomes "removed". This method returns GID of removed download.
     if( !empty( $_POST['selitems'])) {
@@ -259,26 +529,22 @@ switch( $action ) {
       foreach($_POST['selitems'] as $gid ) {
         if( !empty($gid)) {
           try { 
-            // first get current status of the gid
-            // active : call remove
-            // paused : call forceRemove
-            // other (error or finished)  : removeDownloadResult
-            $status = tellStatus($gid);
+            $status = getStatus($gid);
             switch($status) {
-                case 'failed':
-                    $msg .= $gid . " Can't get current status";
-                    break;
                 case 'active':
+                case 'waiting':
                     $result = $client->aria2_remove( $gid );
                     break;
-                case 'paused':
-                    $result = $client->aria2_forceRemove($gid) ;
-                    break;
                 case 'error':
+				case 'complete':
+                case 'removed':
                     $result = $client->aria2_removeDownloadResult($gid);
                     break;
+                default:
+                    $result = "Unknow file status";
+                    $success = false;
                 }
-            $msg .= $gid . " File removed from queue";
+            $msg .= $gid . " File removed from queue : " . $result;
           }
           catch (XML_RPC2_FaultException $e) {  
             $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
@@ -290,63 +556,28 @@ switch( $action ) {
     }
   exit;
 
-  case 'purge':
-    // list terminated without error and remove them from aria2
-    $msg = '';
-    $list2purge = tellFinished();
-    if( !empty( $list2purge)) {
-      $success = true;
-      foreach($list2purge as $gid ) {
-        if( !empty($gid)) {
-          try { 
-            $msg .= $gid .  " ";
-            $result = $client->aria2_removeDownloadResult( $gid );
-//            $msg .= $gid .  " ";
-          }
-          catch (XML_RPC2_FaultException $e) {  
-            $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
-            $success = false;
-          }
-        }
-      }
-      $msg .= 'File removed from queue';
-      sendResult($success, $msg);
-      exit;
-    }
-    sendResult(false, 'No file to remove');
-    exit;    
-
   case 'pause':
-    // for each ids, if status = 'active' : set to 'paused'
+    // for error status : do nothing
+    // for complete status : do nothing
+    // for pause status : do nothing
+    // for waiting status :  pause
+    // for active : pause
     if( !empty( $_POST['selitems'])) {
       $success = true;
       $msg = '';
       foreach($_POST['selitems'] as $gid ) {
         if( !empty($gid)) {
-          try { 
-            $status = tellStatus($gid);
+          try {
+            // get status
+            $status = getStatus($gid);
             switch ($status) {
-                case 'failed':
-                    $msg .= $gid . " Can't get current status";
-                    break;
                 case 'active':
-                    $result = $client->aria2_pause( $gid );
-                    $msg .= $gid . " File paused";
+                case 'waiting':
+                    pause($gid);
                     break;
-                case 'paused':
-                    $result = $client->aria2_unpause( $gid );
-                    $msg .= $gid . " File unpaused";
+                default:
                     break;
-                case 'error':
-                    //$$AL$$ TODO : restart downlaod in error
-                    // get uri
-                    $uri = $client->aria2_getUris($gid);
-                    // remove gid
-                    $result = $client->aria2_removeDownloadResult($gid);
-                    // add again uri
-                    $result = $client->aria2_addUri($uri);
-                    break;
-                }
+            }
           }
           catch (XML_RPC2_FaultException $e) {  
             $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
@@ -357,6 +588,83 @@ switch( $action ) {
       sendResult($success, $msg);
     }
     exit;
+    exit;
+
+  case 'start':
+    // for error status : getinfo add new download, remove old one
+    // for complete status : do nothing
+    // for pause status : unpause
+    // for waiting status :  do nothing
+    // for active : do nothing
+    if( !empty( $_POST['selitems'])) {
+      $success = true;
+      $msg = '';
+      foreach($_POST['selitems'] as $gid ) {
+        if( !empty($gid)) {
+          try {
+            // get status
+            $status = getStatus($gid);
+            switch ($status) {
+                case 'active':
+                case 'waiting':
+                case 'complete':
+                    break;
+                case 'error':
+                    // get uris
+                    $uris = getUris($gid);
+                    // get target dir
+                    $target_dir = getDir($gid);
+                    // add uri again with initial target dir
+                    addUri($uris, $target_dir);
+                    // remove old one
+                    $result = $client->aria2_removeDownloadResult($gid);
+                    break;
+                case 'paused':
+                    unPause($gid);
+                    //un pause
+                    break;
+                default:
+                    break;
+            }
+          }
+          catch (XML_RPC2_FaultException $e) {  
+            $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
+            $success = false;
+          }
+        }
+      }
+      sendResult($success, $msg);
+    }
+    exit;
+
+
+    case 'purgeFinished':
+        $list2purge = tellFinished(0, 0);
+        purge($list2purge);
+        exit;
+    case 'purgeErr':
+        $list2purge = tellError(0, 0);
+        purge($list2purge);
+        exit;
+
+    case 'pauseAll':
+		$msg = pauseAll();
+		if ($msg != "OK")
+			$success = false;
+		else
+			$success = true;
+		
+		sendResult($success, $msg);
+		exit;
+	case 'startAll':
+		$msg = startAll();
+		if ($msg != "OK")
+			$success = false;
+		else
+			$success = true;
+		
+		sendResult($success, $msg);
+		exit;
   case 'getUris':
     //aria2.getUris gid
     //This method returns URIs used in the download denoted by gid. gid is of type string. The response is of type array and its element is of type struct and it contains following keys. The value type is string.
@@ -415,12 +723,14 @@ switch( $action ) {
   case 'purgeDownloadResult':
     //aria2.purgeDownloadResult
     //This method purges completed/error/removed downloads to free memory. This method returns "OK".
+	break;
   case 'getVersion':
     //aria2.getVersion
     //This method returns version of the program and the list of enabled features. The response is of type struct and contains following keys.
     try { 
       $result = $client->aria2_getVersion();
       if( is_array($result ) ) {
+//		log_print_r("version", $result);
         $result = json_encode($result);
         header("Content-type: text/html");
         echo $result;
@@ -439,6 +749,7 @@ switch( $action ) {
       $success = false;
     
     }
+	
     sendResult($success, $msg);
     exit;
   case 'download':

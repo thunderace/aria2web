@@ -9,15 +9,15 @@
 * other free or open source software licenses.
 * http://sourceforge.net/projects/aria2web/
 */
+
 function openActionDialog( caller, action ) {
 	var dialog;
 	var selectedRows = Ext.getCmp("fileGrid").getSelectionModel().getSelections();
-	var dontNeedSelection = { add:1, get_about:1, globalOptions: 1, purge: 1};
+	var dontNeedSelection = { add:1, get_about:1, globalOptions: 1, purgeErr: 1, purgeFinished: 1, pauseAll: 1, startAll: 1};
 	if( dontNeedSelection[action] == null  && selectedRows.length < 1 ) {
 		Ext.Msg.alert( 'No file selected!');
 		return false;
 	}
-
 	switch( action ) {
 		case 'add':
 		case 'options':
@@ -27,8 +27,8 @@ function openActionDialog( caller, action ) {
 			requestParams = getRequestParams();
 			requestParams.action = "dialog_" + action;
 			
-        	dialog = new Ext.Window( {
-        		id: "dialog",
+            dialog = new Ext.Window( {
+                id: "dialog",
                 autoCreate: true,
                 autoScroll: true,
                 modal:true,
@@ -41,13 +41,13 @@ function openActionDialog( caller, action ) {
                 resizable: true,
                 renderTo: Ext.getBody(),
                 keys: {
-				    key: 27,
-				    fn  : function(){
+                    key: 27,
+                    fn  : function(){
                         dialog.hide();
                     }
 				},
 				title: "Action Dialog"
-        	});			
+            });			
 			
 			Ext.Ajax.request( { url: 'index.php',
 								params: Ext.urlEncode( requestParams ),
@@ -117,21 +117,34 @@ function openActionDialog( caller, action ) {
 										}
 							});
             
-            	dialog.on( 'hide', function() { dialog.destroy(true); } );
-            	dialog.show();
+                dialog.on( 'hide', function() { dialog.destroy(true); } );
+                dialog.show();
             
             break;
 
-        case 'purge':
-        	Ext.Msg.confirm('Remove finished downloads?', 'Are you sure you want to remove finished downloads?' , purgeFiles);
-			break;
-
+        case 'purgeErr':
+            Ext.Msg.confirm('Purge Error list?', 'Are you sure you want to remove all downloads in error?' , purgeErr);
+            break;
+        case 'purgeFinished':
+            Ext.Msg.confirm('Purge finished list?', 'Are you sure you want to remove all finished downloads?' , purgeFinished);
+            break;
         case 'pause':
-            var num = selectedRows.length;
-    		Ext.Msg.confirm('Pause the File?', String.format("Are you sure you want to pause these {0} item(s)?", num ), pauseFiles);
+            pauseFiles();
 			break;
-
-case 'remove':
+        case 'start':
+            start();
+            break;     
+		case 'pauseAll':
+			requestParams = getRequestParams();
+			requestParams.action = 'pauseAll';
+			handleCallback(requestParams);
+			break;
+		case 'startAll':
+			requestParams = getRequestParams();
+			requestParams.action = 'startAll';
+			handleCallback(requestParams);
+			break;
+        case 'remove':
             var num = selectedRows.length;
 			Ext.Msg.confirm('Remove the File?', String.format("Are you sure you want to remove these {0} item(s)?", num ), removeFiles);
 			break;
@@ -184,6 +197,14 @@ function getRequestParams() {
 /**
 * Function for actions, which don't require a form like download, extraction, deletion etc.
 */
+
+function start() {
+	requestParams = getRequestParams();
+	requestParams.action = 'start';
+	handleCallback(requestParams);
+}
+
+
 function removeFiles(btn) {
 	if( btn != 'yes') {
 		return;
@@ -194,20 +215,26 @@ function removeFiles(btn) {
 }
 
 
-function purgeFiles(btn) {
+function purgeFinished(btn) {
     if( btn != 'yes') {
-		return;
+        return;
 	}
 	requestParams = getRequestParams();
-	requestParams.action = 'purge';
+	requestParams.action = 'purgeFinished';
+	handleCallback(requestParams);
+}
+
+function purgeErr(btn) {
+    if( btn != 'yes') {
+        return;
+	}
+	requestParams = getRequestParams();
+	requestParams.action = 'purgeErr';
 	handleCallback(requestParams);
 }
 
 
 function pauseFiles(btn) {
-    if( btn != 'yes') {
-    	return;
-	}
 	requestParams = getRequestParams();
 	requestParams.action = 'pause';
 	handleCallback(requestParams);
@@ -255,16 +282,16 @@ function statusBarMessage( msg, isLoading, success ) {
 	}
 	if( success ) {
 		statusBar.setStatus({
-		    text: 'Success: ' + msg,
-		    iconCls: 'x-status-valid',
-		    clear: true
+            text: 'Success: ' + msg,
+            iconCls: 'x-status-valid',
+            clear: true
 		});
 		Ext.msgBoxSlider.msg('Success', msg );
-	} else if( success != null ) {
-		statusBar.setStatus({
-		    text: 'Error: ' + msg,
-		    iconCls: 'x-status-error',
-		    clear: true
+    } else if( success != null ) {
+        statusBar.setStatus({
+            text: 'Error: ' + msg,
+            iconCls: 'x-status-error',
+            clear: true
 		});
 		
 	}

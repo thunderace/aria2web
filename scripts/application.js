@@ -24,42 +24,53 @@ Ext.override(Ext.form.FormPanel, {
     }
 
 });
+var pageSize = 30;
+var datastore;
 Ext.BLANK_IMAGE_URL = 'scripts/extjs/resources/images/default/s.gif';
+
 Ext.onReady(function(){
 
+	var xg = Ext.grid;
+    
+    var reader = new Ext.data.JsonReader({
+                    root: "items",
+                    totalProperty: "totalCount"
+                }, 
+                Ext.data.Record.create([
+                    {name: "gid"},
+                    {name: "status"},
+                    {name: "totalLength"},
+                    {name: "name"},
+                    {name: "completedLength"},
+                    {name: "uploadLength"},
+                    {name: "bitfield"},
+                    {name: "downloadSpeed"},
+                    {name: "uploadSpeed"},
+                    {name: "estimatedTime"},
+                    {name: "infohash"},
+                    {name: "numSeeders"},
+                    {name: "pieceLength"},
+                    {name: "numPieces"},
+                    {name: "connections"},
+                    {name: "errorCode"},
+                    {name: "followedBy"},
+                    {name: "belongsTo"}, 
+                    {name: "package"},
+                    {name: "dir"}
+                ]));
 	  // create the Data Store
     datastore = new Ext.data.Store({
+        reader: reader,
         proxy: new Ext.data.HttpProxy({
         	 url: 'index.php',
         }),
         action: "tellActive",
-        baseParams:{offset:0, num:50, action: "tellActive"  },
-        // create reader that reads the File records
-        reader: new Ext.data.JsonReader({
-            root: "items",
-            totalProperty: "totalCount"
-        }, Ext.data.Record.create([
-            {name: "gid"},
-            {name: "status"},
-            {name: "totalLength"},
-            {name: "name"},
-            {name: "completedLength"},
-            {name: "uploadLength"},
-            {name: "bitfield"},
-            {name: "downloadSpeed"},
-            {name: "uploadSpeed"},
-            {name: "estimatedTime"},
-            {name: "infohash"},
-            {name: "numSeeders"},
-            {name: "pieceLength"},
-            {name: "numPieces"},
-            {name: "connections"},
-            {name: "errorCode"},
-            {name: "followedBy"},
-            {name: "belongsTo"}
-        ]))
+        baseParams:{start:0, limit:pageSize, action: "tellActive"  }
     });
    
+   
+   
+    var mask =new Ext.LoadMask(Ext.getBody(),{msg:'Loading data...', store: datastore});
 
     var gridtb = new Ext.Toolbar([
            	{
@@ -83,13 +94,21 @@ Ext.onReady(function(){
            	},
                {
                	xtype: "tbbutton",
-           		id: 'tb_pause',
+           		id: 'tb_pause_all',
            		icon: 'images/_pause.png',
-           		text: 'Pause/UnPause',
-           		disabled: true,
-           		tooltip: 'Allows you to pause a download',
+           		text: 'Pause All',
+           		tooltip: 'Allows you to pause all downloads',
            		cls:'x-btn-text-icon',
-           		handler: function() { openActionDialog(this, 'pause'); }
+           		handler: function() { openActionDialog(this, 'pauseAll'); }
+           	},
+               {
+               	xtype: "tbbutton",
+           		id: 'tb_start_all',
+           		icon: 'images/_pause.png',
+           		text: 'start All',
+           		tooltip: 'Allows you to start all downloads',
+           		cls:'x-btn-text-icon',
+           		handler: function() { openActionDialog(this, 'startAll'); }
            	},
               {
            		xtype: "tbbutton",
@@ -99,16 +118,7 @@ Ext.onReady(function(){
               	tooltip: 'Refreshed the download list',
                 cls:'x-btn-text-icon',
                 handler: function() { datastore.load(); }
-              },'-',
-              {
-               	xtype: "tbbutton",
-           		id: 'tb_purge',
-                icon: 'images/_reload.png',
-                text: 'Purge',
-              	tooltip: 'Purge completed downloads from list',
-                cls:'x-btn-text-icon',
-                handler: function() { openActionDialog(this, 'purge');}
-              },'-',
+              }, '-',
               {
                   text: 'Show Active',
                   enableToggle: true,
@@ -117,13 +127,32 @@ Ext.onReady(function(){
                   pressed: true
               },
               {
-                  text: 'Show Finished/Stopped',
+                  text: 'Show Finished/Error',
                   enableToggle: true,
                   id: 'btn_showstopped',
                   toggleHandler: onItemToggle,
                   pressed: false
+              },'-',
+              {
+                xtype: "tbbutton",
+           		id: 'tb_purgeFinished',
+                icon: 'images/_reload.png',
+                text: 'Purge Finished',
+                disabled: true,
+              	tooltip: 'Purge Finished',
+                cls:'x-btn-text-icon',
+                handler: function() { openActionDialog(this, 'purgeFinished'); }
               },
-              '-',
+                {
+                xtype: "tbbutton",
+               	id: 'tb_purgeErr',
+                icon: 'images/_reload.png',
+                text: 'Purge Error',
+                disabled: true,
+              	tooltip: 'Purge Error',
+                cls:'x-btn-text-icon',
+                handler: function() { openActionDialog(this, 'purgeErr'); }
+              },'-',
               {
                   text: 'Auto-Refresh',
                   enableToggle: true,
@@ -150,22 +179,38 @@ Ext.onReady(function(){
 					handler: function() { document.location.href='index.php?logout'; }
 				},
            ]);
+    
     function onItemToggle(item, pressed){
     	
     	datastore.baseParams.action = item.id == 'btn_showstopped' ? "tellStopped" : "tellActive";
-    	
-    	if( item.id == 'btn_showstopped' && pressed == true ) {
-    		Ext.getCmp("btn_showactive").toggle( false, true );
-    	} else if(  item.id == 'btn_showactive' && pressed == true) {
-    		Ext.getCmp("btn_showstopped").toggle( false, true );
-    	}
+
+        if(item.id == 'btn_showstopped' && pressed == true ) 
+            {
+        	Ext.getCmp("btn_showactive").toggle( false, true );
+            Ext.getCmp("tb_start_all").disable();
+            Ext.getCmp("tb_pause_all").disable();
+            Ext.getCmp("tb_purgeErr").enable();
+            Ext.getCmp("tb_purgeFinished").enable();
+            datastore.baseParams.action = "tellStopped";
+    	    } 
+        else 
+            if(item.id == 'btn_showactive' && pressed == true) 
+                {
+        	    Ext.getCmp("btn_showstopped").toggle( false, true );
+                Ext.getCmp("tb_purgeErr").disable();
+                Ext.getCmp("tb_purgeFinished").disable();
+                Ext.getCmp("tb_start_all").enable();
+                Ext.getCmp("tb_pause_all").enable();
+                datastore.baseParams.action = "tellActive";
+                }
     	datastore.load();
-    }
+    };
     // add a paging toolbar to the grid's footer
     var gridbb = new Ext.PagingToolbar({
         store: datastore,
-        pageSize: 50,
+        pageSize: pageSize,
         displayInfo: true,
+        emptyMsg: "No download to display",
 		items: ['-',' ',' ',' ',' ',' ',
 			new Ext.ux.StatusBar({
 			    defaultText: 'Done',
@@ -177,57 +222,70 @@ Ext.onReady(function(){
     // the column model has information about grid columns
     // dataIndex maps the column to the specific data field in
     // the data store
-    var cm = new Ext.grid.ColumnModel([{
-           id: 'gridcm', // id assigned so we can apply custom css (e.g. .x-grid-col-topic b { color:#333 })
-           header: "ID",
-           dataIndex: 'gid',
-           width: 30,
-           //renderer: renderFileName,
-           css: 'white-space:normal;'
-           
-        },{
-            header: "Name",
-            dataIndex: 'name',
-            width: 350
-         },{
-            header: "CompletedLength",
-            dataIndex: 'completedLength',
-            width: 120
-         },{
-           header: "TotalLength",
-           dataIndex: 'totalLength',
-           width: 120
-        },{
-           header: "Download Speed",
-           dataIndex: 'downloadSpeed',
-           width: 100
-        },{
-            header: "Upload Speed",
-            dataIndex: 'uploadSpeed',
-            width: 100
-         },{
-             header: "Estimated Time",
-             dataIndex: 'estimatedTime',
-             width: 100
-          },{
-             header: "# Connections",
-             dataIndex: 'connections',
-             width: 60
-          },{
-              header: "Status",
-              dataIndex: 'status',
-              width: 250,
-              align: 'right'
-           },  
-        { dataIndex: 'bitfield', hidden: true, hideable: false },
-        {dataIndex: 'infohash', hidden: true, hideable: false },
-        {dataIndex: 'numSeeders', hidden: true, hideable: false },
-        {dataIndex: 'pieceLength', hidden: true, hideable: false },
-        {dataIndex: 'errorCode', hidden: true, hideable: false },
-        {dataIndex: 'followedBy', hidden: true, hideable: false },
-        {dataIndex: 'belongsTo', hidden: true, hideable: false },
-        {dataIndex: 'numPieces', hidden: true, hideable: false }
-        ]);
+
+    var cm = new xg.ColumnModel({
+        store: datastore,
+        onRender:function() {
+                // call parent
+//                Example.Grid.superclass.onRender.apply(this, arguments);
+         
+                // load the store
+                this.store.load({params:{start:0, limit:pageSize}});
+         
+            },
+		columns: [
+			{id: 'gridcm', header: "ID", dataIndex: 'gid', width: 50, css: 'white-space:normal;',  sortable: true},
+    		{id: 'package', header: "Package", dataIndex: 'package', width: 120 , sortable: true},
+			{header: "Name", dataIndex: 'name', width: 350, sortable: true},
+			{header: "CompletedLength", dataIndex: 'completedLength', width: 120, sortable: true},
+			{header: "TotalLength", dataIndex: 'totalLength', width: 120, sortable: true},
+			{header: "Download Speed", dataIndex: 'downloadSpeed', width: 100},
+			{header: "Upload Speed", dataIndex: 'uploadSpeed', width: 100},
+			{header: "Estimated Time", dataIndex: 'estimatedTime', width: 100},
+			{header: "# Connections", dataIndex: 'connections', width: 60},
+    		{header: "StatusHidden", dataIndex: 'status', width: 250, align: 'right', hidden: true, hideable: false },
+    		{header: "Status", xtype: 'actioncolumn', width: 60, align: 'center',
+                items: [{
+                    getClass: function(v, meta, rec) { 
+                        // Or return a class from a function
+                        this.items[0].tooltip = rec.get('status');
+                        if (rec.get('status') == 'waiting') 
+                            return 'status-wait';
+                        else
+                            if(rec.get('status') == 'active')
+                                return 'status-down';
+                            else
+                                if(rec.get('status') == 'error')
+                                    return 'status-err';
+                                else
+                                    {
+                                    if(rec.get('status') == 'complete')
+                                        return 'status-success';
+                                    else
+                                        if(rec.get('status') == 'paused')
+                                            return 'status-paused';
+                                        else
+                                            return '';
+                                    }
+                    }
+                }]
+		    },  
+			{header: "Target dir", dataIndex: 'dir', width: 120 , sortable: true},
+			{dataIndex: 'bitfield', hidden: true, hideable: false },
+			{dataIndex: 'infohash', hidden: true, hideable: false },
+			{dataIndex: 'numSeeders', hidden: true, hideable: false },
+			{dataIndex: 'pieceLength', hidden: true, hideable: false },
+			{dataIndex: 'errorCode', hidden: true, hideable: false },
+			{dataIndex: 'followedBy', hidden: true, hideable: false },
+			{dataIndex: 'belongsTo', hidden: true, hideable: false },
+			{dataIndex: 'numPieces', hidden: true, hideable: false }
+			],
+			view: new Ext.grid.GroupingView({
+				forceFit:true,
+				groupTextTpl: '{text} ({[values.rs.length]} {[values.rs.length > 1 ? "Items" : "Item"]})'
+			})		
+	});
+	
 
     // by default columns are sortable
     cm.defaultSortable = true;
@@ -245,12 +303,13 @@ Ext.onReady(function(){
 	    	gsm.clickedRow = rowIndex;
 	    	var selections = gsm.getSelections();
 			showingFinished = Ext.getCmp("btn_showstopped").pressed;
-			
+			gridCtxMenu.items.get('gc_start').enable();
+            
 			if( !showingFinished) {
 				gridCtxMenu.items.get('gc_download').disable();
 			} else {
 	    		gridCtxMenu.items.get('gc_edit').disable();
-	    		gridCtxMenu.items.get('gc_delete').disable();				
+	    		gridCtxMenu.items.get('gc_delete').enable();				
 			}
 	    	if( selections.length > 1 ) {
 	    		gridCtxMenu.items.get('gc_edit').disable();
@@ -285,6 +344,18 @@ Ext.onReady(function(){
 	    		text: 'Download File',
 	    		handler: function() { openActionDialog(this,'download'); }
 	    	},
+        	{
+	    		id: 'gc_start',
+	    		icon: 'images/_down.png',
+	    		text: 'Start Download',
+	    		handler: function() { openActionDialog(this,'start'); }
+	    	},
+        	{
+	    		id: 'gc_pause',
+	    		icon: 'images/_down.png',
+	    		text: 'Pause Download',
+	    		handler: function() { openActionDialog(this,'pause'); }
+	    	},
 	    	'-',
 			{
 				id: 'cancel',
@@ -306,7 +377,7 @@ Ext.onReady(function(){
        renderTo:'downloads-grid',
        items: [{
     	   region: 'north',
-    	   height: 125,
+    	   height: 70,
     	   contentEl: "header"
        }, {
     	   xtype: 'grid',
@@ -334,6 +405,7 @@ Ext.onReady(function(){
 		}]
 
     });
+
     function handleRowClick(sm, rowIndex, r) {
     	
     	var selections = sm.getSelections();
@@ -341,15 +413,17 @@ Ext.onReady(function(){
     	if( selections.length >= 1 ) 
             {
         	tb.items.get('tb_remove').enable();
-        	tb.items.get('tb_pause').enable();
+//        	tb.items.get('tb_pause').enable();
             }
 	    else 
             {
     		tb.items.get('tb_remove').disable();
-    		tb.items.get('tb_pause').disable();
+//    		tb.items.get('tb_pause').disable();
             }
     	return true;
     }
+    
+
     
     firstRun = true;
     

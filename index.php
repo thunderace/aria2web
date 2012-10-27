@@ -12,7 +12,7 @@
 */
 define( '_ARIA2WEB', 1 );
 define( '_ARIA2WEB_VERSION', '0.1' );
-define( '_ARIA2WEB_HOMEPAGE', 'https://sourceforge.net/projects/aria2web/' );
+define( '_ARIA2WEB_HOMEPAGE', 'https://github.com/thunderace/aria2web' );
 
 session_name('aria2web');
 session_start();
@@ -39,10 +39,48 @@ require_once( 'actions.php');
 <script type="text/javascript" src="scripts/application.js"></script>
 <script type="text/javascript" src="scripts/functions.js"></script>
 <script type="text/javascript">var aria2web_mode="<?php echo $aria2_mode ?>";</script>
+    <style type=text/css>
+        /* style rows on mouseover */
+        .x-grid3-row-over .x-grid3-cell-inner {
+            font-weight: bold;sh
+        }
+
+        .x-action-col-cell img.status-wait {
+            height: 16px;
+            width: 16px;
+            background-image: url(./images/wait.png);
+        }
+
+        .x-action-col-cell img.status-paused {
+            height: 16px;
+            width: 16px;
+            background-image: url(./images/paused.png);
+        }
+
+        .x-action-col-cell img.status-err {
+            height: 16px;
+            width: 16px;
+            background-image: url(./images/error.png);
+        }
+        .x-action-col-cell img.status-down {
+            height: 16px;
+            width: 16px;
+            background-image: url(./images/download.png);
+        }
+        .x-action-col-cell img.status-success {
+            height: 16px;
+            width: 16px;
+            background-image: url(./images/success.png);
+        }
+
+</style>
+
 </head>
 <body>
-<div id="header"><h1 style="float: left;">Aria2c Webfrontend</h1>
-<a href="<?php echo _ARIA2WEB_HOMEPAGE ?>" title="Visit the Aria2Web Homepage" target="_blank"><img align="right" src="images/logo.png" alt="aria2web logo2" border="0" /></a>
+
+
+<div id="header" style="height: 53px;"><h1 style="float: left;">Aria2c Webfrontend</h1>
+<a href="<?php echo _ARIA2WEB_HOMEPAGE ?>" title="Visit the Aria2Web Homepage" target="_blank"><img align="right" src="images/logoV2.png" alt="aria2web logo2" border="0" /></a>
  <br /><br style="clear: left;" /><p>Controlling <a href="http://aria2.sourceforge.net/" target="_blank">Aria2</a> over the network.</p>
  </div>
 <?php 

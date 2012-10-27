@@ -24,15 +24,23 @@ switch( $action ) {
 		"items": [
 		<?php
 			for($i=0;$i<7;$i++) {
-				echo '{
+				echo '{ xtype: "compositefield", items: [
+					{
+						"xtype": "textfield",
+						"fieldLabel": "URL",
+						"name": "userfile['.$i.']",
+						"width":275
+					},
+					{
 					"xtype": "textfield",
-					"fieldLabel": "URL",
-					"name": "userfile['.$i.']",
-					"width":275
-				}';
+					"fieldLabel": "Package",
+					"name": "package['.$i.']",
+					"width":170
+					}
+				]}';
 				if( $i <6 ) echo ",\n";
 			}
-			?>
+		?>
 			
 		],
 		"buttons": [{
@@ -125,7 +133,6 @@ switch( $action ) {
 					if( ++$i < $numOptions ) echo ",\n";
 				}
 					?>
-					
 				],
 				"buttons": [{			
 					"text": "Save Options", 
@@ -225,8 +232,7 @@ switch( $action ) {
 					}
 					if( $i++ < $numOptions ) echo ",\n";
 				}
-					?>
-					
+				?>
 				],
 				"buttons": [{			
 					"text": "Save Options", 

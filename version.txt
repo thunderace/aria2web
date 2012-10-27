@@ -1,2 +1,3 @@
 0.1 : original version from sourcefoge (thx soeren for the initial work)
 0.1.1 : work in progress (work with current aria2c version (1.15.2))
+2.0 : first release
