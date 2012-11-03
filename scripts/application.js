@@ -169,7 +169,16 @@ Ext.onReady(function(){
               	tooltip: 'Allows you to change the global options for all downloads',
                 cls:'x-btn-text-icon',
                 handler: function() { openActionDialog(this, 'globalOptions') }
-              },'-',
+              },
+              {
+               	xtype: "tbbutton",
+           		id: 'tb_uioptions',
+                icon: 'images/_options.png',
+                text: 'UI Options',
+              	tooltip: 'Allows you to change the webui options',
+                cls:'x-btn-text-icon',
+                handler: function() { openActionDialog(this, 'uiOptions') }
+              },              '-',
 				{	// LOGOUT
 					xtype: "tbbutton",
 					id: 'tb_logout',
@@ -255,7 +264,7 @@ Ext.onReady(function(){
                             if(rec.get('status') == 'active')
                                 return 'status-down';
                             else
-                                if(rec.get('status') == 'error')
+                                if(rec.get('status').slice(0, 5) == 'error')
                                     return 'status-err';
                                 else
                                     {
@@ -314,7 +323,7 @@ Ext.onReady(function(){
 	    	if( selections.length > 1 ) {
 	    		gridCtxMenu.items.get('gc_edit').disable();
 	    	} else if(selections.length == 1) {				
-	    		//gridCtxMenu.items.get('gc_edit').enable();
+	    		gridCtxMenu.items.get('gc_edit').enable();
 	    		//gridCtxMenu.items.get('gc_delete').enable();
 	    	}
 			if( aria2web_mode != "local" ) {
@@ -347,13 +356,13 @@ Ext.onReady(function(){
         	{
 	    		id: 'gc_start',
 	    		icon: 'images/_down.png',
-	    		text: 'Start Download',
+	    		text: 'Start/Restart',
 	    		handler: function() { openActionDialog(this,'start'); }
 	    	},
         	{
 	    		id: 'gc_pause',
 	    		icon: 'images/_down.png',
-	    		text: 'Pause Download',
+	    		text: 'Pause',
 	    		handler: function() { openActionDialog(this,'pause'); }
 	    	},
 	    	'-',

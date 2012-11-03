@@ -13,6 +13,7 @@
 defined( '_ARIA2WEB' ) or die();
 // to run Aria2web in "local" mode means it's installed on the same machine as aria2, so we can start the aria2c executable through PHP
 // when Aria2web is run in "web" mode, it's assumed that it's installed on a different machine and won't (be able to) start the aria2c executable
+$aria2_debug = false;
 $aria2_mode = 'web'; 
 $aria2_xmlrpc_host = 'localhost';
 $aria2_xmlrpc_uripath = '/rpc';

@@ -130,7 +130,7 @@ switch( $action ) {
 						"value": "'.$value.'"
 						}';
 					}
-					if( ++$i < $numOptions ) echo ",\n";
+    				if( ++$i < $numOptions ) echo ",\n";
 				}
 					?>
 				],
@@ -178,6 +178,8 @@ switch( $action ) {
 		}
 	exit;
 	
+    case 'dialog_uiOptions':
+        exit;
 	
 	case 'dialog_globalOptions':
 		//aria2.getGlobalOption

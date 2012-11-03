@@ -12,12 +12,21 @@ defined( '_ARIA2WEB' ) or die();
 * http://sourceforge.net/projects/aria2web/
 */
 
+require_once 'config.php';
 require_once 'XML/RPC2/Client.php';
-//require_once '/volume1/web/lib/PhpConsole/PhpConsole.php';
-//PhpConsole::start(true, true, dirname(__FILE__));
-//require_once '/volume1/web/lib/KLogger.php';
-//$log = new KLogger('/volume1/web/', KLogger::INFO );
+if ($aria2_debug == true)
+{
+    require_once '/volume1/web/lib/PhpConsole/PhpConsole.php';
+    PhpConsole::start(true, true, dirname(__FILE__));
+    require_once '/volume1/web/lib/KLogger.php';
+    $log = new KLogger('/volume1/web/', KLogger::INFO );
+}
 
+function isDebug()
+{
+    global $aria2_debug;
+    return $aria2_debug;
+}
 
 function pause($gid)
 {
@@ -37,6 +46,7 @@ function unPause($gid)
 function addUri($uris, $dir)
 {
     global $client;
+    $success = true;
     $msg = "";
     try { 
       $result = $client->aria2_addUri( $uris, array("dir" => $dir));
@@ -44,9 +54,11 @@ function addUri($uris, $dir)
     }
     catch (XML_RPC2_FaultException $e) {  
       $msg .= 'Exception: ' . $e->getFaultString().' (ErrorCode '. $e->getFaultCode() . ')<br />';
+       debug($msg);
 	  $success = false;
     }
 
+    return $success;
 }
 
 function getGlobalOption($opt)
@@ -60,6 +72,8 @@ function getGlobalOption($opt)
 
 function debug_print_r($str, $var)
 {
+    if (isDebug() == false)
+        return;
     ob_start();
     echo $str . " : ";
     print_r($var);
@@ -67,15 +81,17 @@ function debug_print_r($str, $var)
     ob_end_clean();
 
 }
+
 function log_print_r($str, $var)
 {
+    if (isDebug() == false)
+        return;
 	global $log;
     ob_start();
     echo $str . " : ";
     print_r($var);
     $log->logInfo(ob_get_contents());
     ob_end_clean();
-
 }
 
 function getStats()
@@ -464,12 +480,18 @@ switch( $action ) {
                         }
 
                     if( $file['completedLength'] != 0 ) 
+                        {
                         $completedPercentage = ' ('.round( ($file['completedLength'] / $file['totalLength'])*100 , 2) .'%)';
+                        $file['name'] = basename($file['files'][0]['path']);
+                        }
                     else 
+                        {
+    		            $file['name'] = basename($file['files'][0]['uris'][0]['uri']);
                         $completedPercentage = '(0%)';
+                        }
                     $file['status'] .= $status; 
 					$file['package'] = getPackageName($file['dir']);
-					$file['name'] = basename($file['files'][0]['path']);
+
                     $file['completedLength'] = parse_file_size($file['completedLength']).$completedPercentage;
                     $file['totalLength'] = parse_file_size($file['totalLength']);
                     $items[] = $file;
@@ -533,6 +555,7 @@ switch( $action ) {
             switch($status) {
                 case 'active':
                 case 'waiting':
+                case 'paused':
                     $result = $client->aria2_remove( $gid );
                     break;
                 case 'error':
@@ -615,9 +638,10 @@ switch( $action ) {
                     // get target dir
                     $target_dir = getDir($gid);
                     // add uri again with initial target dir
-                    addUri($uris, $target_dir);
+                    $success =addUri($uris, $target_dir);
                     // remove old one
-                    $result = $client->aria2_removeDownloadResult($gid);
+                    if ($success == true)
+                        $result = $client->aria2_removeDownloadResult($gid);
                     break;
                 case 'paused':
                     unPause($gid);
