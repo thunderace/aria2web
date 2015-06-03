@@ -1,7 +1,7 @@
 #################
 ## Eclipse
 #################
-
+config.php
 *.pydevproject
 .project
 .metadata
